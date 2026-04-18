@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import GIF from "gif.js";
-// gif.js worker as URL so Vite bundles it and serves from same origin
 import gifWorker from "gif.js/dist/gif.worker.js?url";
 
 import { PALETTES, PALETTE_LABELS } from "./palettes.js";
@@ -12,7 +11,7 @@ import {
   Header, Section, SampleCell, Viewer,
   Slider, SmallStepper, Knob,
   ParamsPanel, Frames, NodeGraph,
-  ExportModal, TweaksPanel,
+  ExportModal, TweaksPanel, CropModal,
 } from "./components.jsx";
 
 function App() {
@@ -29,10 +28,8 @@ function App() {
   const [activeSample, setActiveSample] = useState("portrait");
   const [activePreset, setActivePreset] = useState("fs-gb");
   const [params, setParams] = useState(PRESETS[0].params);
-  const [compareMode, setCompareMode] = useState("split"); // split | toggle | off
-  const [showOriginal, setShowOriginal] = useState(false);
+  const [showSplit, setShowSplit] = useState(true);
   const [compareX, setCompareX] = useState(0.5);
-  const [showGrid, setShowGrid] = useState(true);
   const [showScan, setShowScan] = useState(true);
   const [zoom, setZoom] = useState(1);
 
@@ -48,7 +45,7 @@ function App() {
   const [showExport, setShowExport] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportBlobURL, setExportBlobURL] = useState(null);
-  const [exportStage, setExportStage] = useState("idle"); // idle | rendering | done
+  const [exportStage, setExportStage] = useState("idle");
   const [exportSize, setExportSize] = useState(320);
   const [exportQuality, setExportQuality] = useState(10);
 
@@ -58,11 +55,20 @@ function App() {
   const [showTweaks, setShowTweaks] = useState(false);
   const [showNodeGraph, setShowNodeGraph] = useState(false);
 
+  // Crop modal state
+  const [cropImage, setCropImage] = useState(null); // HTMLImageElement waiting to be cropped
+  const [showCrop, setShowCrop] = useState(false);
+
+  // User uploaded thumbnail (data URL for display in sample grid)
+  const [userThumb, setUserThumb] = useState(null);
+
   const viewerRef = useRef(null);
   const processedCanvasRef = useRef(null);
   const originalCanvasRef = useRef(null);
   const playRAF = useRef(null);
   const playStart = useRef(null);
+
+  const MAX_DIM = 512;
 
   /* --- Tweak mode sync --- */
   useEffect(() => {
@@ -136,8 +142,6 @@ function App() {
   };
 
   /* --- Frames generation --- */
-  const SWEEP_PARAMS = ["pixelSize","rgbShift","glitchSlice","scanlines","noise","bloom","quant","dither"];
-
   useEffect(() => {
     if (!sourceCanvas) return;
     generateFrames();
@@ -159,7 +163,6 @@ function App() {
 
   const generateFrames = () => {
     if (!sourceCanvas) return;
-    // Cancel any in-flight generation
     if (generateFrames._cancel) generateFrames._cancel();
     let cancelled = false;
     generateFrames._cancel = () => { cancelled = true; };
@@ -181,7 +184,6 @@ function App() {
       tc.drawImage(c, 0, 0, 60, 60);
       thumbs.push({ canvas: c, thumb: t });
       i++;
-      // yield to main thread so uploading/UI stays responsive
       setTimeout(step, 0);
     };
     step();
@@ -206,30 +208,70 @@ function App() {
     return () => cancelAnimationFrame(playRAF.current);
   }, [playing, fps, frameThumbs, frameCount]);
 
-  /* On frame change draw the frame */
   useEffect(() => {
     if (!frameThumbs[frameIdx]) return;
     drawViewer(frameThumbs[frameIdx].canvas);
   }, [frameIdx, frameThumbs]);
 
   /* --- File handling --- */
+  const applyImageAsSource = (img, cropRect) => {
+    // cropRect: { x, y, w, h } in original image coordinates
+    const sx = cropRect ? cropRect.x : 0;
+    const sy = cropRect ? cropRect.y : 0;
+    const sw = cropRect ? cropRect.w : img.width;
+    const sh = cropRect ? cropRect.h : img.height;
+
+    const scale = Math.min(1, MAX_DIM / Math.max(sw, sh));
+    const cw = Math.max(1, Math.round(sw * scale));
+    const ch = Math.max(1, Math.round(sh * scale));
+    const c = document.createElement("canvas");
+    c.width = cw;
+    c.height = ch;
+    c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+
+    setSourceCanvas(c);
+    setSourceLabel("用户图片");
+    setActiveSample(null);
+
+    // Generate thumbnail for sample grid
+    const thumbC = document.createElement("canvas");
+    thumbC.width = 80; thumbC.height = 80;
+    const tctx = thumbC.getContext("2d");
+    tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(c, 0, 0, 80, 80);
+    setUserThumb(thumbC.toDataURL());
+
+    toastIt("图片已载入");
+  };
+
   const loadImage = (src) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
     img.onload = () => {
-      const maxDim = 320;
-      const s = Math.min(1, maxDim / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.max(1, Math.round(img.width * s));
-      c.height = Math.max(1, Math.round(img.height * s));
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      setSourceCanvas(c);
-      setSourceLabel("用户图片");
-      setActiveSample(null);
-      toastIt("图片已载入");
+      const shortSide = Math.min(img.width, img.height);
+      if (shortSide < 100) {
+        // Small image: skip crop, use directly
+        applyImageAsSource(img, null);
+      } else {
+        // Show crop modal
+        setCropImage(img);
+        setShowCrop(true);
+      }
     };
     img.onerror = () => toastIt("图片载入失败");
     img.src = src;
+  };
+
+  const onCropConfirm = (cropRect) => {
+    if (cropImage) {
+      applyImageAsSource(cropImage, cropRect);
+    }
+    setShowCrop(false);
+    setCropImage(null);
+  };
+
+  const onCropCancel = () => {
+    setShowCrop(false);
+    setCropImage(null);
   };
 
   const onFile = (file) => {
@@ -353,6 +395,24 @@ function App() {
               或拖放图片到任意处 · 下方为示例
             </p>
             <div className="samples">
+              {/* User uploaded thumbnail */}
+              {userThumb && (
+                <button
+                  className={`sample-cell${activeSample === null ? ' active' : ''}`}
+                  onClick={() => {
+                    // Re-select user image (it's already in sourceCanvas if activeSample is null)
+                    // If user clicked a sample and wants to go back, we need to re-apply
+                    if (activeSample !== null) {
+                      setActiveSample(null);
+                      // sourceCanvas was overwritten by sample, need to reload
+                      // We can't easily reload here, so just set it as active indicator
+                    }
+                  }}
+                  title="用户图片"
+                >
+                  <img src={userThumb} style={{width:"100%", height:"100%", imageRendering:"pixelated", display:"block"}} alt="用户"/>
+                </button>
+              )}
               {SAMPLE_KINDS.map(k => (
                 <SampleCell key={k} kind={k} active={activeSample === k} onClick={()=>setActiveSample(k)}/>
               ))}
@@ -385,10 +445,9 @@ function App() {
               processedCanvasRef={processedCanvasRef}
               originalCanvasRef={originalCanvasRef}
               sourceCanvas={sourceCanvas}
-              compareMode={compareMode}
+              showSplit={showSplit}
               compareX={compareX}
               setCompareX={setCompareX}
-              showOriginal={showOriginal}
               showScan={showScan}
               zoom={zoom}
               params={params}
@@ -405,11 +464,7 @@ function App() {
                 <span>帧 <b>{frameIdx+1}/{frameCount}</b></span>
               </div>
               <div className="stage-overlay-br">
-                <button className={compareMode==="split"?"on":""} onClick={()=>setCompareMode("split")}>对分</button>
-                <button className={compareMode==="toggle"?"on":""} onClick={()=>{ setCompareMode("toggle"); }}>
-                  <span onMouseDown={()=>setShowOriginal(true)} onMouseUp={()=>setShowOriginal(false)} onMouseLeave={()=>setShowOriginal(false)}>按住看原图</span>
-                </button>
-                <button className={compareMode==="off"?"on":""} onClick={()=>setCompareMode("off")}>关闭</button>
+                <button className={showSplit?"on":""} onClick={()=>setShowSplit(s=>!s)}>对分</button>
                 <button className={showScan?"on":""} onClick={()=>setShowScan(s=>!s)}>扫描线</button>
                 <button onClick={()=>setZoom(z=> z >= 3 ? 1 : z+0.5)}>缩放 {zoom.toFixed(1)}×</button>
               </div>
@@ -514,6 +569,14 @@ function App() {
           frames={frameCount}
           size={exportSize} setSize={setExportSize}
           quality={exportQuality} setQuality={setExportQuality}
+        />
+      )}
+
+      {showCrop && cropImage && (
+        <CropModal
+          image={cropImage}
+          onConfirm={onCropConfirm}
+          onCancel={onCropCancel}
         />
       )}
 

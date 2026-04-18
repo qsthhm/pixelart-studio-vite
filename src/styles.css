@@ -9,10 +9,10 @@
     --ink-2: #a3a8b2;
     --ink-3: #6a7280;
     --ink-4: #3f4753;
-    --accent: #b7ff3d;   /* phosphor green-yellow */
+    --accent: #b7ff3d;
     --accent-ink: #0a0a0a;
-    --accent-2: #ff5ad9; /* magenta glitch */
-    --accent-3: #5ad9ff; /* cyan glitch */
+    --accent-2: #ff5ad9;
+    --accent-3: #5ad9ff;
     --warn: #ffb84d;
     --red: #ff5a5a;
     --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -209,13 +209,22 @@
       repeating-linear-gradient(0deg, transparent 0, transparent 23px, rgba(255,255,255,0.012) 23px, rgba(255,255,255,0.012) 24px),
       repeating-linear-gradient(90deg, transparent 0, transparent 23px, rgba(255,255,255,0.012) 23px, rgba(255,255,255,0.012) 24px),
       var(--bg);
-    overflow: hidden;
+    overflow: auto;
     padding: 28px;
   }
   .stage::before {
     content: ""; position: absolute; inset: 0; pointer-events: none;
     background: radial-gradient(circle at 50% 50%, transparent 50%, rgba(0,0,0,0.45) 100%);
+    z-index: 0;
   }
+
+  /* Viewer wrap for transform zoom */
+  .viewer-wrap {
+    position: relative;
+    z-index: 1;
+    transition: transform 0.2s ease;
+  }
+
   .viewer {
     position: relative; max-width: 100%; max-height: 100%;
     display: flex; align-items: center; justify-content: center;
@@ -228,10 +237,11 @@
     position: absolute; top: 8px; left: 8px; font-family: var(--mono); font-size: 9px;
     padding: 4px 7px; letter-spacing: 0.14em; text-transform: uppercase;
     background: rgba(0,0,0,0.65); color: var(--ink-2); border: 1px solid var(--line-2);
+    z-index: 2;
   }
   .viewer .label.green { color: var(--accent); border-color: var(--accent); }
   .viewer .corner {
-    position: absolute; width: 10px; height: 10px; border: 1px solid var(--ink-3);
+    position: absolute; width: 10px; height: 10px; border: 1px solid var(--ink-3); z-index: 2;
   }
   .viewer .corner.tl { top: -5px; left: -5px; border-right: 0; border-bottom: 0; }
   .viewer .corner.tr { top: -5px; right: -5px; border-left: 0; border-bottom: 0; }
@@ -240,18 +250,17 @@
 
   .compare-split { position: relative; overflow: hidden; cursor: ew-resize; }
   .compare-split .orig { position: absolute; top: 0; left: 0; height: 100%; overflow: hidden; }
-  .compare-split .orig canvas { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .compare-split .orig canvas { display: block; height: 100%; }
   .compare-split .handle {
     position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent);
     cursor: ew-resize; box-shadow: 0 0 10px var(--accent);
     transform: translateX(-50%);
+    z-index: 3;
   }
-  /* Wider invisible hit area for easier grabbing */
   .compare-split .handle::before {
     content: ""; position: absolute; left: -12px; right: -12px; top: 0; bottom: 0;
     cursor: ew-resize;
   }
-  /* Grip icon in the middle of the handle */
   .compare-split .handle .handle-grip {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: 32px; height: 32px; border-radius: 50%;
@@ -276,7 +285,7 @@
     z-index: 50;
   }
 
-  .empty-state { text-align: center; color: var(--ink-3); font-family: var(--mono); }
+  .empty-state { text-align: center; color: var(--ink-3); font-family: var(--mono); z-index: 1; position: relative; }
   .empty-state h2 { font-family: var(--mono); font-weight: 600; font-size: 14px; letter-spacing: 0.2em; color: var(--ink-2); text-transform: uppercase; }
   .empty-state p { font-size: 11px; letter-spacing: 0.08em; color: var(--ink-3); }
   .empty-ascii { color: var(--accent); font-size: 10px; white-space: pre; line-height: 1.1; margin-bottom: 24px; }
@@ -284,10 +293,12 @@
   .stage-overlay-bl {
     position: absolute; bottom: 14px; left: 14px; display:flex; gap: 10px;
     font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase;
+    z-index: 10;
   }
   .stage-overlay-bl b { color: var(--ink); font-weight: 500; }
   .stage-overlay-br {
     position: absolute; bottom: 14px; right: 14px; display:flex; gap: 6px;
+    z-index: 10;
   }
   .stage-overlay-br button {
     background: rgba(0,0,0,0.5); color: var(--ink-2); border: 1px solid var(--line-2); padding: 6px 8px;
@@ -350,9 +361,39 @@
   .modal .mbody { padding: 18px; }
   .modal .mrow { display:grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; margin-bottom: 12px; }
   .modal .mrow label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
-  .modal .mfoot { padding: 12px 18px; border-top: 1px solid var(--line); display:flex; gap: 8px; justify-content:flex-end; }
+  .modal .mfoot, .crop-modal .mfoot { padding: 12px 18px; border-top: 1px solid var(--line); display:flex; gap: 8px; justify-content:flex-end; }
   .progress-bar { height: 4px; background: var(--line-2); position: relative; }
   .progress-bar > div { position:absolute; left:0; top:0; bottom:0; background: var(--accent); transition: width .1s; }
+
+  /* --- CROP MODAL --- */
+  .crop-modal {
+    width: 680px; max-width: 90vw; background: var(--panel); border: 1px solid var(--line-2);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    display: flex; flex-direction: column;
+  }
+  .crop-modal h2 {
+    margin: 0; padding: 14px 18px; border-bottom: 1px solid var(--line);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+  }
+  .crop-ratios {
+    display: flex; gap: 4px; padding: 12px 18px; border-bottom: 1px solid var(--line);
+  }
+  .crop-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 420px;
+    background: #000;
+    overflow: hidden;
+    user-select: none;
+  }
+  .crop-canvas-wrap canvas {
+    image-rendering: auto;
+  }
+  .crop-info {
+    display: flex; gap: 16px; padding: 10px 18px; border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
 
   /* Tweaks panel */
   .tweaks-panel {
@@ -392,4 +433,5 @@
   .scan-overlay {
     position: absolute; inset: 0; pointer-events: none;
     background: repeating-linear-gradient(0deg, rgba(0,0,0,0.35) 0, rgba(0,0,0,0.35) 1px, transparent 1px, transparent 3px);
+    z-index: 1;
   }

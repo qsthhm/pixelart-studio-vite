@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { PALETTES, PALETTE_LABELS } from "./palettes.js";
 import { PRESETS } from "./presets.js";
 import { makeSample, SAMPLE_LABELS } from "./samples.js";
 
+/* ========== HEADER ========== */
 function Header({ tab, setTab, onExport, onExportPNG, onPlayPause, playing }) {
   return (
     <header className="hdr">
@@ -21,7 +22,7 @@ function Header({ tab, setTab, onExport, onExportPNG, onPlayPause, playing }) {
       </nav>
       <div className="spacer"/>
       <div className="hdr-meta">
-        <div className="pulse"/> 实时 · v0.4.1 · 会话 &nbsp; <span style={{color:"var(--ink-2)"}}>0x4A7F</span>
+        <div className="pulse"/> 实时 · v0.5.0 · 会话 &nbsp; <span style={{color:"var(--ink-2)"}}>0x4A7F</span>
       </div>
       <div className="hdr-btns">
         <button className="btn ghost" onClick={onPlayPause}>
@@ -33,6 +34,7 @@ function Header({ tab, setTab, onExport, onExportPNG, onPlayPause, playing }) {
   );
 }
 
+/* ========== SECTION ========== */
 function Section({ title, tag, children }) {
   return (
     <section className="sec">
@@ -42,6 +44,7 @@ function Section({ title, tag, children }) {
   );
 }
 
+/* ========== SAMPLE CELL ========== */
 function SampleCell({ kind, active, onClick }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -57,62 +60,60 @@ function SampleCell({ kind, active, onClick }) {
   );
 }
 
-function Viewer({ processedCanvasRef, originalCanvasRef, sourceCanvas, compareMode, compareX, setCompareX, showOriginal, showScan, zoom }) {
+/* ========== VIEWER ========== */
+function Viewer({ processedCanvasRef, originalCanvasRef, sourceCanvas, showSplit, compareX, setCompareX, showScan, zoom }) {
   const wrapRef = useRef(null);
   const dragging = useRef(false);
 
-  const onMove = (e) => {
+  const onMove = useCallback((e) => {
     if (!dragging.current) return;
     const r = wrapRef.current.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width;
     setCompareX(Math.max(0, Math.min(1, x)));
-  };
+  }, [setCompareX]);
+
   useEffect(() => {
     const up = () => dragging.current = false;
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", up);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", up); };
-  }, []);
+  }, [onMove]);
 
-  const size = Math.min(560, 520) * zoom;
+  const baseSize = Math.min(560, 520);
 
   return (
-    <div className="viewer" ref={wrapRef} style={{width: size, height: size}}
-         onMouseDown={(e)=>{ if (compareMode==="split") { dragging.current = true; onMove(e); }}}>
-      <span className="corner tl"/><span className="corner tr"/><span className="corner bl"/><span className="corner br"/>
-      <div className="label green">已处理</div>
+    <div className="viewer-wrap" style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}>
+      <div className="viewer" ref={wrapRef} style={{width: baseSize, height: baseSize}}
+           onMouseDown={(e)=>{ if (showSplit) { dragging.current = true; onMove(e); }}}>
+        <span className="corner tl"/><span className="corner tr"/><span className="corner bl"/><span className="corner br"/>
+        <div className="label green">已处理</div>
 
-      <canvas ref={processedCanvasRef} style={{width:"100%", height:"100%"}}/>
+        <canvas ref={processedCanvasRef} style={{width:"100%", height:"100%"}}/>
 
-      {compareMode === "split" && (
-        <div className="compare-split" style={{position:"absolute", inset:0}}>
-          <div className="orig" style={{width: `${compareX*100}%`}}>
-            <canvas ref={originalCanvasRef} style={{width:"100%", height:"100%"}}/>
-            <div className="label" style={{color:"var(--ink-2)"}}>原图</div>
-          </div>
-          <div className="handle" style={{left: `${compareX*100}%`}}>
-            <div className="handle-grip">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M6 10L2 10M2 10L4.5 7.5M2 10L4.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M14 10L18 10M18 10L15.5 7.5M18 10L15.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+        {showSplit && (
+          <div className="compare-split" style={{position:"absolute", inset:0}}>
+            <div className="orig" style={{width: `${compareX*100}%`}}>
+              <canvas ref={originalCanvasRef} style={{width: baseSize, height: baseSize}}/>
+              <div className="label" style={{color:"var(--ink-2)"}}>原图</div>
+            </div>
+            <div className="handle" style={{left: `${compareX*100}%`}}>
+              <div className="handle-grip">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M6 10L2 10M2 10L4.5 7.5M2 10L4.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M14 10L18 10M18 10L15.5 7.5M18 10L15.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {compareMode === "toggle" && showOriginal && (
-        <div style={{position:"absolute", inset: 0}}>
-          <canvas ref={originalCanvasRef} style={{width:"100%", height:"100%"}}/>
-          <div className="label" style={{color:"var(--ink-2)"}}>原图</div>
-        </div>
-      )}
-
-      {showScan && <div className="scan-overlay"/>}
+        {showScan && <div className="scan-overlay"/>}
+      </div>
     </div>
   );
 }
 
+/* ========== SLIDER ========== */
 function Slider({ label, value, min, max, step, unit, onChange, disabled }) {
   return (
     <div className="param">
@@ -126,6 +127,7 @@ function Slider({ label, value, min, max, step, unit, onChange, disabled }) {
   );
 }
 
+/* ========== SMALL STEPPER ========== */
 function SmallStepper({ label, value, min, max, onChange }) {
   return (
     <div style={{flex: 1}}>
@@ -142,6 +144,7 @@ function SmallStepper({ label, value, min, max, onChange }) {
   );
 }
 
+/* ========== KNOB ========== */
 function Knob({ label, value, min, max, onChange }) {
   const wrapRef = useRef(null);
   const startY = useRef(0);
@@ -183,6 +186,7 @@ function Knob({ label, value, min, max, onChange }) {
   );
 }
 
+/* ========== PARAMS PANEL ========== */
 function ParamsPanel({ params, updateParam, sweepParam, setSweepParam, sweepStart, setSweepStart, sweepEnd, setSweepEnd, tab }) {
   const ditherOptions = [
     { v: "none", l: "无" },
@@ -277,6 +281,7 @@ function ParamsPanel({ params, updateParam, sweepParam, setSweepParam, sweepStar
   );
 }
 
+/* ========== FRAMES ========== */
 function Frames({ thumbs, activeIdx, setIdx }) {
   return (
     <div className="frames">
@@ -294,6 +299,7 @@ function Frames({ thumbs, activeIdx, setIdx }) {
   );
 }
 
+/* ========== NODE GRAPH ========== */
 function NodeGraph({ params }) {
   const steps = [
     { id:"src", label:"源", on: true, x: 6 },
@@ -323,6 +329,7 @@ function NodeGraph({ params }) {
   );
 }
 
+/* ========== EXPORT MODAL ========== */
 function ExportModal({ onClose, onExport, progress, stage, blobURL, fps, frames, size, setSize, quality, setQuality }) {
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -381,6 +388,249 @@ function ExportModal({ onClose, onExport, progress, stage, blobURL, fps, frames,
   );
 }
 
+/* ========== CROP MODAL ========== */
+function CropModal({ image, onConfirm, onCancel }) {
+  const canvasRef = useRef(null);
+  const wrapRef = useRef(null);
+  const [ratio, setRatio] = useState("free"); // "free" | "1:1" | "4:3" | "16:9"
+  const [crop, setCrop] = useState({ x: 0, y: 0, w: 0, h: 0 });
+  const [display, setDisplay] = useState({ scale: 1, offX: 0, offY: 0, dw: 0, dh: 0 });
+  const dragging = useRef(null); // null | "move" | "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w"
+  const dragStart = useRef({ mx: 0, my: 0, crop: null });
+
+  // Calculate display dimensions and initial crop
+  useEffect(() => {
+    if (!image || !wrapRef.current) return;
+    const container = wrapRef.current;
+    const maxW = container.clientWidth;
+    const maxH = container.clientHeight;
+    const scale = Math.min(maxW / image.width, maxH / image.height, 1);
+    const dw = Math.round(image.width * scale);
+    const dh = Math.round(image.height * scale);
+    const offX = Math.round((maxW - dw) / 2);
+    const offY = Math.round((maxH - dh) / 2);
+    setDisplay({ scale, offX, offY, dw, dh });
+
+    // Initial crop: center 80% or ratio-constrained
+    initCrop(image.width, image.height, ratio);
+  }, [image]);
+
+  const initCrop = (iw, ih, r) => {
+    let cw, ch;
+    if (r === "1:1") {
+      cw = ch = Math.min(iw, ih) * 0.8;
+    } else if (r === "4:3") {
+      if (iw / ih > 4/3) { ch = ih * 0.8; cw = ch * (4/3); }
+      else { cw = iw * 0.8; ch = cw / (4/3); }
+    } else if (r === "16:9") {
+      if (iw / ih > 16/9) { ch = ih * 0.8; cw = ch * (16/9); }
+      else { cw = iw * 0.8; ch = cw / (16/9); }
+    } else {
+      cw = iw * 0.8; ch = ih * 0.8;
+    }
+    cw = Math.round(Math.min(cw, iw));
+    ch = Math.round(Math.min(ch, ih));
+    setCrop({ x: Math.round((iw - cw) / 2), y: Math.round((ih - ch) / 2), w: cw, h: ch });
+  };
+
+  const changeRatio = (r) => {
+    setRatio(r);
+    if (image) initCrop(image.width, image.height, r);
+  };
+
+  // Draw the canvas with image + overlay
+  useEffect(() => {
+    if (!canvasRef.current || !image) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    canvas.width = display.dw;
+    canvas.height = display.dh;
+
+    // Draw full image
+    ctx.drawImage(image, 0, 0, display.dw, display.dh);
+
+    // Dark overlay outside crop
+    const s = display.scale;
+    const cx = crop.x * s, cy = crop.y * s, cw = crop.w * s, ch = crop.h * s;
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    // top
+    ctx.fillRect(0, 0, display.dw, cy);
+    // bottom
+    ctx.fillRect(0, cy + ch, display.dw, display.dh - cy - ch);
+    // left
+    ctx.fillRect(0, cy, cx, ch);
+    // right
+    ctx.fillRect(cx + cw, cy, display.dw - cx - cw, ch);
+
+    // Crop border
+    ctx.strokeStyle = "var(--accent, #b7ff3d)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx, cy, cw, ch);
+
+    // Rule of thirds lines
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx + (cw * i / 3), cy);
+      ctx.lineTo(cx + (cw * i / 3), cy + ch);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + (ch * i / 3));
+      ctx.lineTo(cx + cw, cy + (ch * i / 3));
+      ctx.stroke();
+    }
+
+    // Corner handles
+    const hs = 8;
+    ctx.fillStyle = "#fff";
+    [[cx, cy], [cx + cw, cy], [cx, cy + ch], [cx + cw, cy + ch]].forEach(([hx, hy]) => {
+      ctx.fillRect(hx - hs/2, hy - hs/2, hs, hs);
+    });
+
+    // Dimension label
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    const labelText = `${Math.round(crop.w)} × ${Math.round(crop.h)}`;
+    ctx.font = "12px monospace";
+    const tm = ctx.measureText(labelText);
+    const lx = cx + cw / 2 - tm.width / 2 - 6;
+    const ly = cy + ch + 8;
+    ctx.fillRect(lx, ly, tm.width + 12, 20);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(labelText, lx + 6, ly + 14);
+  }, [image, display, crop]);
+
+  // Mouse interaction
+  const getHandle = (mx, my) => {
+    const s = display.scale;
+    const cx = crop.x * s + display.offX;
+    const cy = crop.y * s + display.offY;
+    const cw = crop.w * s;
+    const ch = crop.h * s;
+    const thr = 12;
+
+    const nearL = Math.abs(mx - cx) < thr;
+    const nearR = Math.abs(mx - (cx + cw)) < thr;
+    const nearT = Math.abs(my - cy) < thr;
+    const nearB = Math.abs(my - (cy + ch)) < thr;
+
+    if (nearT && nearL) return "nw";
+    if (nearT && nearR) return "ne";
+    if (nearB && nearL) return "sw";
+    if (nearB && nearR) return "se";
+    if (nearT) return "n";
+    if (nearB) return "s";
+    if (nearL) return "w";
+    if (nearR) return "e";
+    if (mx > cx && mx < cx + cw && my > cy && my < cy + ch) return "move";
+    return null;
+  };
+
+  const onMouseDown = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mx = e.clientX - rect.left + display.offX;
+    const my = e.clientY - rect.top + display.offY;
+    const handle = getHandle(e.clientX - wrapRef.current.getBoundingClientRect().left,
+                              e.clientY - wrapRef.current.getBoundingClientRect().top);
+    if (!handle) return;
+    dragging.current = handle;
+    dragStart.current = { mx: e.clientX, my: e.clientY, crop: { ...crop } };
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!dragging.current) {
+        // Update cursor
+        if (wrapRef.current) {
+          const rect = wrapRef.current.getBoundingClientRect();
+          const h = getHandle(e.clientX - rect.left, e.clientY - rect.top);
+          const cursors = { nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize",
+                           n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", move: "move" };
+          wrapRef.current.style.cursor = cursors[h] || "default";
+        }
+        return;
+      }
+
+      const dx = (e.clientX - dragStart.current.mx) / display.scale;
+      const dy = (e.clientY - dragStart.current.my) / display.scale;
+      const sc = dragStart.current.crop;
+      const iw = image.width, ih = image.height;
+      let { x, y, w, h } = { ...sc };
+
+      const d = dragging.current;
+      if (d === "move") {
+        x = sc.x + dx;
+        y = sc.y + dy;
+        x = Math.max(0, Math.min(iw - w, x));
+        y = Math.max(0, Math.min(ih - h, y));
+      } else {
+        // Resize
+        if (d.includes("w")) { x = sc.x + dx; w = sc.w - dx; }
+        if (d.includes("e")) { w = sc.w + dx; }
+        if (d.includes("n")) { y = sc.y + dy; h = sc.h - dy; }
+        if (d.includes("s")) { h = sc.h + dy; }
+
+        // Enforce ratio
+        if (ratio !== "free") {
+          const ar = ratio === "1:1" ? 1 : ratio === "4:3" ? 4/3 : 16/9;
+          if (d.includes("e") || d.includes("w")) {
+            h = w / ar;
+          } else {
+            w = h * ar;
+          }
+        }
+
+        // Clamp minimum
+        w = Math.max(20, w);
+        h = Math.max(20, h);
+
+        // Clamp to image bounds
+        if (x < 0) { w += x; x = 0; }
+        if (y < 0) { h += y; y = 0; }
+        if (x + w > iw) w = iw - x;
+        if (y + h > ih) h = ih - y;
+      }
+
+      setCrop({ x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) });
+    };
+
+    const onMouseUp = () => { dragging.current = null; };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [display, image, crop, ratio]);
+
+  return (
+    <div className="modal-bg" onClick={onCancel}>
+      <div className="crop-modal" onClick={e => e.stopPropagation()}>
+        <h2>裁切图片</h2>
+        <div className="crop-ratios">
+          {[["free","自由"],["1:1","1:1"],["4:3","4:3"],["16:9","16:9"]].map(([r, label]) => (
+            <button key={r} className={`chip${ratio===r?' on':''}`} onClick={()=>changeRatio(r)}>{label}</button>
+          ))}
+        </div>
+        <div className="crop-canvas-wrap" ref={wrapRef} onMouseDown={onMouseDown}>
+          <canvas ref={canvasRef} style={{ position: "absolute", left: display.offX, top: display.offY }}/>
+        </div>
+        <div className="crop-info">
+          <span>原图 {image.width} × {image.height}</span>
+          <span>裁切 {Math.round(crop.w)} × {Math.round(crop.h)}</span>
+        </div>
+        <div className="mfoot">
+          <button className="btn ghost" onClick={onCancel}>取消</button>
+          <button className="btn primary" onClick={() => onConfirm(crop)}>确认裁切</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ========== TWEAKS PANEL ========== */
 function TweaksPanel({ tweaks, save, onClose }) {
   return (
     <div className="tweaks-panel">
@@ -424,5 +674,5 @@ export {
   Header, Section, SampleCell, Viewer,
   Slider, SmallStepper, Knob,
   ParamsPanel, Frames, NodeGraph,
-  ExportModal, TweaksPanel,
+  ExportModal, TweaksPanel, CropModal,
 };
