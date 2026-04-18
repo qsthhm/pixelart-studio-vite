@@ -87,10 +87,17 @@ function Viewer({ processedCanvasRef, originalCanvasRef, sourceCanvas, compareMo
       {compareMode === "split" && (
         <div className="compare-split" style={{position:"absolute", inset:0}}>
           <div className="orig" style={{width: `${compareX*100}%`}}>
-            <canvas ref={originalCanvasRef} style={{width: size, height: size}}/>
+            <canvas ref={originalCanvasRef} style={{width:"100%", height:"100%"}}/>
             <div className="label" style={{color:"var(--ink-2)"}}>原图</div>
           </div>
-          <div className="handle" style={{left: `${compareX*100}%`}}/>
+          <div className="handle" style={{left: `${compareX*100}%`}}>
+            <div className="handle-grip">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M6 10L2 10M2 10L4.5 7.5M2 10L4.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M14 10L18 10M18 10L15.5 7.5M18 10L15.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          </div>
         </div>
       )}
 
