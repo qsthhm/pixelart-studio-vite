@@ -63,6 +63,7 @@ function SampleCell({ kind, active, onClick }) {
 /* ========== VIEWER ========== */
 function Viewer({ processedCanvasRef, originalCanvasRef, sourceCanvas, showSplit, compareX, setCompareX, showScan, zoom }) {
   const wrapRef = useRef(null);
+  const origVisibleRef = useRef(null);
   const dragging = useRef(false);
 
   const onMove = useCallback((e) => {
@@ -79,6 +80,16 @@ function Viewer({ processedCanvasRef, originalCanvasRef, sourceCanvas, showSplit
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", up); };
   }, [onMove]);
 
+  // Sync hidden originalCanvasRef → visible split canvas whenever source changes or split toggles on
+  useEffect(() => {
+    if (!showSplit || !origVisibleRef.current || !originalCanvasRef.current) return;
+    const src = originalCanvasRef.current;
+    const dst = origVisibleRef.current;
+    dst.width = src.width;
+    dst.height = src.height;
+    dst.getContext("2d").drawImage(src, 0, 0);
+  }, [showSplit, sourceCanvas]);
+
   const baseSize = Math.min(560, 520);
 
   return (
@@ -86,14 +97,17 @@ function Viewer({ processedCanvasRef, originalCanvasRef, sourceCanvas, showSplit
       <div className="viewer" ref={wrapRef} style={{width: baseSize, height: baseSize}}
            onMouseDown={(e)=>{ if (showSplit) { dragging.current = true; onMove(e); }}}>
         <span className="corner tl"/><span className="corner tr"/><span className="corner bl"/><span className="corner br"/>
-        <div className="label green">已处理</div>
 
         <canvas ref={processedCanvasRef} style={{width:"100%", height:"100%"}}/>
+
+        {/* Always render originalCanvasRef so drawViewer can paint to it;
+            only show the split overlay when showSplit is on */}
+        <canvas ref={originalCanvasRef} style={{display:"none"}}/>
 
         {showSplit && (
           <div className="compare-split" style={{position:"absolute", inset:0}}>
             <div className="orig" style={{width: `${compareX*100}%`}}>
-              <canvas ref={originalCanvasRef} style={{width: baseSize, height: baseSize}}/>
+              <canvas ref={origVisibleRef} style={{width:"100%", height:"100%"}}/>
               <div className="label" style={{color:"var(--ink-2)"}}>原图</div>
             </div>
             <div className="handle" style={{left: `${compareX*100}%`}}>

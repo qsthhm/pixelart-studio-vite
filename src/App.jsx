@@ -61,6 +61,8 @@ function App() {
 
   // User uploaded thumbnail (data URL for display in sample grid)
   const [userThumb, setUserThumb] = useState(null);
+  // Persist user's uploaded canvas so it can be re-selected after switching to a sample
+  const [userSourceCanvas, setUserSourceCanvas] = useState(null);
 
   const viewerRef = useRef(null);
   const processedCanvasRef = useRef(null);
@@ -232,6 +234,7 @@ function App() {
     setSourceCanvas(c);
     setSourceLabel("用户图片");
     setActiveSample(null);
+    setUserSourceCanvas(c);
 
     // Generate thumbnail for sample grid
     const thumbC = document.createElement("canvas");
@@ -400,17 +403,18 @@ function App() {
                 <button
                   className={`sample-cell${activeSample === null ? ' active' : ''}`}
                   onClick={() => {
-                    // Re-select user image (it's already in sourceCanvas if activeSample is null)
-                    // If user clicked a sample and wants to go back, we need to re-apply
-                    if (activeSample !== null) {
+                    if (userSourceCanvas) {
                       setActiveSample(null);
-                      // sourceCanvas was overwritten by sample, need to reload
-                      // We can't easily reload here, so just set it as active indicator
+                      setSourceCanvas(userSourceCanvas);
+                      setSourceLabel("用户图片");
                     }
                   }}
                   title="用户图片"
                 >
-                  <img src={userThumb} style={{width:"100%", height:"100%", imageRendering:"pixelated", display:"block"}} alt="用户"/>
+                  <div style={{position:"relative", width:"100%", height:"100%"}}>
+                    <img src={userThumb} style={{width:"100%", height:"100%", imageRendering:"pixelated", display:"block"}} alt="用户"/>
+                    <span className="user-badge">本地</span>
+                  </div>
                 </button>
               )}
               {SAMPLE_KINDS.map(k => (
