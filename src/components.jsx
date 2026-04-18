@@ -63,7 +63,6 @@ function SampleCell({ kind, active, onClick }) {
 /* ========== VIEWER ========== */
 function Viewer({ processedCanvasRef, originalCanvasRef, sourceCanvas, showSplit, compareX, setCompareX, showScan, zoom }) {
   const wrapRef = useRef(null);
-  const origVisibleRef = useRef(null);
   const dragging = useRef(false);
 
   const onMove = useCallback((e) => {
@@ -80,46 +79,44 @@ function Viewer({ processedCanvasRef, originalCanvasRef, sourceCanvas, showSplit
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", up); };
   }, [onMove]);
 
-  // Sync hidden originalCanvasRef → visible split canvas whenever source changes or split toggles on
-  useEffect(() => {
-    if (!showSplit || !origVisibleRef.current || !originalCanvasRef.current) return;
-    const src = originalCanvasRef.current;
-    const dst = origVisibleRef.current;
-    dst.width = src.width;
-    dst.height = src.height;
-    dst.getContext("2d").drawImage(src, 0, 0);
-  }, [showSplit, sourceCanvas]);
-
-  const baseSize = Math.min(560, 520);
+  // Calculate viewer dimensions to match source aspect ratio within a max bounding box
+  const maxDim = 520;
+  let viewW = maxDim, viewH = maxDim;
+  if (sourceCanvas) {
+    const sw = sourceCanvas.width, sh = sourceCanvas.height;
+    const scale = Math.min(maxDim / sw, maxDim / sh);
+    viewW = Math.round(sw * scale);
+    viewH = Math.round(sh * scale);
+  }
 
   return (
     <div className="viewer-wrap" style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}>
-      <div className="viewer" ref={wrapRef} style={{width: baseSize, height: baseSize}}
+      <div className="viewer" ref={wrapRef} style={{width: viewW, height: viewH}}
            onMouseDown={(e)=>{ if (showSplit) { dragging.current = true; onMove(e); }}}>
         <span className="corner tl"/><span className="corner tr"/><span className="corner bl"/><span className="corner br"/>
 
         <canvas ref={processedCanvasRef} style={{width:"100%", height:"100%"}}/>
 
-        {/* Always render originalCanvasRef so drawViewer can paint to it;
-            only show the split overlay when showSplit is on */}
-        <canvas ref={originalCanvasRef} style={{display:"none"}}/>
-
-        {showSplit && (
-          <div className="compare-split" style={{position:"absolute", inset:0}}>
-            <div className="orig" style={{width: `${compareX*100}%`}}>
-              <canvas ref={origVisibleRef} style={{width:"100%", height:"100%"}}/>
-              <div className="label" style={{color:"var(--ink-2)"}}>原图</div>
-            </div>
-            <div className="handle" style={{left: `${compareX*100}%`}}>
-              <div className="handle-grip">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M6 10L2 10M2 10L4.5 7.5M2 10L4.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M14 10L18 10M18 10L15.5 7.5M18 10L15.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
+        {/* originalCanvasRef is always in DOM so drawViewer can always write to it.
+            It is positioned on top, clipped by .orig width when split is on,
+            or fully hidden when split is off. */}
+        <div className="compare-split" style={{
+          position:"absolute", inset:0,
+          display: showSplit ? "block" : "none"
+        }}>
+          <div className="orig" style={{width: `${compareX*100}%`}}>
+            <canvas ref={originalCanvasRef} style={{width: viewW, height: viewH}}/>
+            <div className="label" style={{color:"var(--ink-2)"}}>原图</div>
+          </div>
+          <div className="handle" style={{left: `${compareX*100}%`}}>
+            <div className="handle-grip">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M6 10L2 10M2 10L4.5 7.5M2 10L4.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M14 10L18 10M18 10L15.5 7.5M18 10L15.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
           </div>
-        )}
+        </div>
 
         {showScan && <div className="scan-overlay"/>}
       </div>

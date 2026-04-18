@@ -116,6 +116,9 @@ function App() {
 
   /* --- Re-process on change --- */
   const processedRef = useRef(null);
+  const sourceCanvasRef = useRef(null);
+  sourceCanvasRef.current = sourceCanvas; // always up to date
+
   useEffect(() => {
     if (!sourceCanvas) return;
     const out = processImage(sourceCanvas, params);
@@ -128,10 +131,12 @@ function App() {
     const target = processedCanvasRef.current;
     target.width = canvas.width; target.height = canvas.height;
     target.getContext("2d").drawImage(canvas, 0, 0);
-    if (originalCanvasRef.current && sourceCanvas) {
-      originalCanvasRef.current.width = sourceCanvas.width;
-      originalCanvasRef.current.height = sourceCanvas.height;
-      originalCanvasRef.current.getContext("2d").drawImage(sourceCanvas, 0, 0);
+    // Always paint the original (unprocessed) source to originalCanvasRef
+    const src = sourceCanvasRef.current;
+    if (originalCanvasRef.current && src) {
+      originalCanvasRef.current.width = src.width;
+      originalCanvasRef.current.height = src.height;
+      originalCanvasRef.current.getContext("2d").drawImage(src, 0, 0);
     }
   };
 
