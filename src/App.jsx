@@ -100,6 +100,7 @@ function App() {
 
   /* --- Sample init --- */
   useEffect(() => {
+    if (!activeSample) return;
     const c = makeSample(activeSample, 320, 320);
     setSourceCanvas(c);
     setSourceLabel(SAMPLE_LABELS[activeSample]);
