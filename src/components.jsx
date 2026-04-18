@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { PALETTES, PALETTE_LABELS } from "./palettes.js";
 import { PRESETS } from "./presets.js";
-import { makeSample } from "./samples.js";
+import { makeSample, SAMPLE_LABELS } from "./samples.js";
 
 function Header({ tab, setTab, onExport, onExportPNG, onPlayPause, playing }) {
   return (
